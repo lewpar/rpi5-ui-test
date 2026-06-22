@@ -1,2 +1,4 @@
 kivy[base]
 pygame
+numpy
+evdev

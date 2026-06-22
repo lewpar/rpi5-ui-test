@@ -1,166 +1,179 @@
-#!/usr/bin/env python3
 import pygame
-import sys
-import time
+import numpy as np
+from evdev import InputDevice, ecodes, list_devices
 
 # -----------------------------
-# Config
+# FIND TOUCH DEVICE
 # -----------------------------
-HOLD_SECONDS = 3
-SAMPLE_RATE = 0.02  # seconds between samples
+
+def find_touch():
+    for path in list_devices():
+        dev = InputDevice(path)
+        caps = dev.capabilities()
+
+        if ecodes.EV_ABS in caps:
+            abs_caps = caps[ecodes.EV_ABS]
+
+            if ecodes.ABS_X in abs_caps and ecodes.ABS_Y in abs_caps:
+                print("Using:", dev.path, dev.name)
+                return dev
+
+    return None
+
+
+dev = find_touch()
+if not dev:
+    raise RuntimeError("No touchscreen device found")
 
 # -----------------------------
-# Helpers
+# PYGAME INIT
 # -----------------------------
-def draw_screen(screen, text, pos, font, color=(255, 255, 255)):
-    screen.fill((0, 0, 0))
-    label = font.render(text, True, color)
-    rect = label.get_rect(center=pos)
-    screen.blit(label, rect)
+
+pygame.init()
+
+W, H = 800, 480
+screen = pygame.display.set_mode((W, H), pygame.FULLSCREEN)
+clock = pygame.time.Clock()
+font = pygame.font.SysFont(None, 40)
+
+# -----------------------------
+# CALIBRATION TARGETS
+# -----------------------------
+
+targets = [
+    (80, 80),      # top-left
+    (720, 80),     # top-right
+    (80, 400),     # bottom-left
+    (720, 400)     # bottom-right
+]
+
+raw_points = []
+index = 0
+
+# -----------------------------
+# READ TOUCH (FIXED: read_one ONLY)
+# -----------------------------
+
+def read_touch():
+    x = None
+    y = None
+
+    # drain available events
+    while True:
+        event = dev.read_one()   # ✅ safest API
+        if event is None:
+            break
+
+        if event.type == ecodes.EV_ABS:
+            if event.code == ecodes.ABS_X:
+                x = event.value
+            elif event.code == ecodes.ABS_Y:
+                y = event.value
+
+    if x is not None and y is not None:
+        return x, y
+
+    return None
+
+# -----------------------------
+# AFFINE SOLVER
+# -----------------------------
+
+def solve_affine(raw, screen_pts):
+    A = []
+    B = []
+
+    for (rx, ry), (sx, sy) in zip(raw, screen_pts):
+        A.append([rx, ry, 1, 0, 0, 0])
+        A.append([0, 0, 0, rx, ry, 1])
+        B.append(sx)
+        B.append(sy)
+
+    A = np.array(A)
+    B = np.array(B)
+
+    X, *_ = np.linalg.lstsq(A, B, rcond=None)
+
+    return X  # a b c d e f
+
+
+def to_xinput_matrix(m):
+    a, b, c, d, e, f = m
+
+    return [
+        a, c, e / W,
+        b, d, f / H,
+        0, 0, 1
+    ]
+
+# -----------------------------
+# DEBOUNCE
+# -----------------------------
+
+last_tap = 0
+DEBOUNCE = 400  # ms
+
+# -----------------------------
+# MAIN LOOP
+# -----------------------------
+
+running = True
+
+while running:
+    screen.fill((20, 20, 20))
+
+    # draw targets
+    for i, (x, y) in enumerate(targets):
+        color = (0, 255, 0) if i == index else (120, 120, 120)
+        pygame.draw.circle(screen, color, (x, y), 18)
+
+    txt = font.render(f"Tap target {index+1}/4", True, (255, 255, 255))
+    screen.blit(txt, (20, 20))
+
     pygame.display.flip()
 
-def collect_touch(screen, prompt, width, height, font):
-    """
-    Collect averaged touch position while finger is held down.
-    Works with SDL touch + mouse fallback.
-    """
-
-    print(f"\n==> {prompt}")
-
-    screen.fill((0, 0, 0))
-    label = font.render(prompt, True, (255, 255, 255))
-    rect = label.get_rect(center=(width // 2, height // 2))
-    screen.blit(label, rect)
-    pygame.display.flip()
-
-    touching = False
-    start_time = None
-
-    sum_x = 0
-    sum_y = 0
-    count = 0
-
-    last_sample = 0
-
-    running = True
-    while running:
-        now = time.time()
-
-        for event in pygame.event.get():
-            # Touch events (SDL2)
-            if event.type == pygame.FINGERDOWN:
-                touching = True
-                start_time = time.time()
-
-            elif event.type == pygame.FINGERUP:
-                touching = False
-                running = False
-
-            elif event.type == pygame.FINGERMOTION:
-                touching = True
-
-            # Mouse fallback (useful for desktop testing)
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                touching = True
-                start_time = time.time()
-
-            elif event.type == pygame.MOUSEBUTTONUP:
-                touching = False
-                running = False
-
-        if touching and (now - last_sample) >= SAMPLE_RATE:
-            last_sample = now
-
-            x, y = pygame.mouse.get_pos()
-
-            sum_x += x
-            sum_y += y
-            count += 1
-
-        # Stop automatically after hold time
-        if start_time and (now - start_time) >= HOLD_SECONDS:
+    # pygame events (exit support)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
             running = False
 
-    if count == 0:
-        print("No touch detected")
-        sys.exit(1)
+    # -----------------------------
+    # TOUCH INPUT
+    # -----------------------------
 
-    avg_x = sum_x // count
-    avg_y = sum_y // count
+    touch = read_touch()
+    now = pygame.time.get_ticks()
 
-    print(f"    x: {avg_x}")
-    print(f"    y: {avg_y}")
+    if touch and index < len(targets):
+        if now - last_tap > DEBOUNCE:
+            rx, ry = touch
+            print("Captured:", rx, ry)
 
-    return avg_x, avg_y
+            raw_points.append((rx, ry))
+            index += 1
+            last_tap = now
 
+    clock.tick(60)
+
+pygame.quit()
 
 # -----------------------------
-# Main
+# SOLVE + OUTPUT
 # -----------------------------
-def main():
-    pygame.init()
 
-    info = pygame.display.Info()
-    width, height = info.current_w, info.current_h
+if len(raw_points) == 4:
+    m = solve_affine(raw_points, targets)
+    xinput = to_xinput_matrix(m)
 
-    screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
-    pygame.display.set_caption("Touch Calibration")
+    print("\n=== CALIBRATION COMPLETE ===")
+    print("Affine:", m)
 
-    font = pygame.font.SysFont(None, 48)
+    print("\nXInput matrix:")
+    print(" ".join(map(str, xinput)))
 
-    print("Touchscreen calibration starting...")
-
-    # -----------------------------
-    # Top-left
-    # -----------------------------
-    draw_screen(screen, "Touch TOP LEFT corner", (width * 0.2, height * 0.2), font)
-    time.sleep(1)
-    tl_x, tl_y = collect_touch(screen, "Touch TOP LEFT and hold", width, height, font)
-
-    time.sleep(1)
-
-    # -----------------------------
-    # Bottom-right
-    # -----------------------------
-    draw_screen(screen, "Touch BOTTOM RIGHT corner", (width * 0.8, height * 0.8), font)
-    time.sleep(1)
-    br_x, br_y = collect_touch(screen, "Touch BOTTOM RIGHT and hold", width, height, font)
-
-    # -----------------------------
-    # Results
-    # -----------------------------
-    screen.fill((0, 0, 0))
-    pygame.display.flip()
-
-    print("\n==============================")
-    print(" Calibration Results")
-    print("==============================\n")
-
-    device = "/dev/input/eventX (SDL touch - replace if needed)"
-
-    print("Kivy config line:")
+    print("\nApply with:")
     print(
-        f"hidinput,{device},invert_y=0,"
-        f"min_abs_x={tl_x},max_abs_x={br_x},"
-        f"min_abs_y={tl_y},max_abs_y={br_y}"
+        "xinput set-prop <device-id> "
+        "'Coordinate Transformation Matrix' " +
+        " ".join(map(str, xinput))
     )
-
-    print("\nIndividual values:")
-    print(f"min_abs_x = {tl_x}")
-    print(f"max_abs_x = {br_x}")
-    print(f"min_abs_y = {tl_y}")
-    print(f"max_abs_y = {br_y}")
-
-    print("\nPress any key to exit...")
-
-    waiting = True
-    while waiting:
-        for event in pygame.event.get():
-            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
-                waiting = False
-
-    pygame.quit()
-
-
-if __name__ == "__main__":
-    main()
