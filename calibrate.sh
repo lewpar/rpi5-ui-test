@@ -38,7 +38,9 @@ read_touch() {
     echo "==> Touch the $label corner and hold for ${hold_secs} seconds..."
 
     local sum_x=0 sum_y=0 count=0
-    local last_x="" last_y=""
+    local last_x last_y
+    last_x=""
+    last_y=""
     local start_time end_time
     start_time=$(date +%s)
     end_time=$(( start_time + hold_secs ))
