@@ -5,7 +5,7 @@ set -e
 # Must be run as root (needed to read raw input events)
 # ---------------------------------------------------------------------------
 if [ "$EUID" -ne 0 ]; then
-    echo "Error: please run as root (sudo ./calibrate.sh)" >&2
+    echo "Error: please run this script as root." >&2
     exit 1
 fi
 

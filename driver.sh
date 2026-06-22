@@ -5,7 +5,7 @@ set -euo pipefail
 # Must be run as root
 # ---------------------------------------------------------------------------
 if [ "$EUID" -ne 0 ]; then
-    echo "Error: please run as root (sudo ./install.sh)" >&2
+    echo "Error: please run this script as root." >&2
     exit 1
 fi
 
