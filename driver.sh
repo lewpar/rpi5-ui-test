@@ -28,7 +28,10 @@ cp ./ads7846-overlay.dtb /boot/overlays/ads7846.dtbo
 # Written fresh each run so re-running is safe.
 # hdmi_mode=87 is the custom CVT mode for the 800x480 panel.
 # ---------------------------------------------------------------------------
-tee /boot/firmware/config.txt > /dev/null <<'CONF'
+if ! grep -q "dtoverlay=ads7846" /boot/firmware/config.txt; then
+    tee -a /boot/firmware/config.txt > /dev/null <<'CONF'
+ 
+# Added by install.sh
 dtoverlay=vc4-kms-v3d
 hdmi_force_hotplug=1
 dtparam=i2c_arm=on
@@ -43,6 +46,9 @@ hdmi_drive=1
 hdmi_cvt 800 480 60 6 0 0 0
 dtoverlay=ads7846,cs=1,penirq=25,penirq_pull=2,speed=50000,keep_vref_on=0,swapxy=0,pmax=255,xohms=150,xmin=200,xmax=3900,ymin=200,ymax=3900
 CONF
+else
+    echo "==> /boot/firmware/config.txt already configured, skipping"
+fi
 
 # ---------------------------------------------------------------------------
 # cmdline.txt — append video mode if not already present
