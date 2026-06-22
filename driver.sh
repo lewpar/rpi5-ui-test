@@ -13,7 +13,7 @@ echo "==> Hardware arch  : $hardware_arch"
 # ---------------------------------------------------------------------------
 # Touch overlay
 # ---------------------------------------------------------------------------
-sudo cp ./usr/ads7846-overlay.dtb /boot/overlays/ads7846.dtbo
+sudo cp ./ads7846-overlay.dtb /boot/overlays/ads7846.dtbo
 
 # ---------------------------------------------------------------------------
 # Build /boot/firmware/config.txt
