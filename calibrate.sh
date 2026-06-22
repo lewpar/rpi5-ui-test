@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -e
 
 # ---------------------------------------------------------------------------
 # Must be run as root (needed to read raw input events)
