@@ -25,6 +25,7 @@ Config.set('input', 'ads7846', f'hidinput,{device},invert_y=0,min_abs_x=150,max_
 
 from kivy.app import App
 from kivy.uix.widget import Widget
+from kivy.core.window import Window
 
 
 class PongGame(Widget):
@@ -33,7 +34,13 @@ class PongGame(Widget):
 
 class PongApp(App):
     def build(self):
+        Window.bind(on_keyboard=self.on_keyboard)
         return PongGame()
+
+    def on_keyboard(self, window, key, *args):
+        if key == 27:  # Escape
+            self.stop()
+            return True
 
 
 if __name__ == '__main__':
