@@ -61,8 +61,13 @@ def read_touch():
             elif event.code == ecodes.ABS_Y:
                 y = event.value
 
-    if x is not None and y is not None:
-        return x, y
+        # IMPORTANT: only return when kernel says frame is complete
+        if event.type == ecodes.SYN_REPORT:
+            if x is not None and y is not None:
+                return x, y
+
+            x = None
+            y = None
 
     return None
 
