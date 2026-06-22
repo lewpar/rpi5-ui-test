@@ -3,7 +3,7 @@ import numpy as np
 from evdev import InputDevice, list_devices, ecodes
 
 # -----------------------------
-# DEVICE SELECTION MENU (TERMINAL)
+# DEVICE SELECTION
 # -----------------------------
 
 devices = [InputDevice(p) for p in list_devices()]
@@ -29,7 +29,7 @@ clock = pygame.time.Clock()
 font = pygame.font.SysFont(None, 40)
 
 # -----------------------------
-# CALIBRATION TARGETS
+# TARGETS
 # -----------------------------
 
 targets = [
@@ -43,7 +43,7 @@ raw_points = []
 index = 0
 
 # -----------------------------
-# TOUCH INPUT (ROBUST read_one)
+# TOUCH INPUT
 # -----------------------------
 
 def read_touch():
@@ -67,7 +67,7 @@ def read_touch():
     return None
 
 # -----------------------------
-# AFFINE SOLVER
+# SOLVER
 # -----------------------------
 
 def solve_affine(raw, screen_pts):
@@ -97,11 +97,12 @@ def to_xinput_matrix(m):
     ]
 
 # -----------------------------
-# DEBOUNCE
+# STATE
 # -----------------------------
 
 last_tap = 0
 DEBOUNCE_MS = 400
+done = False
 
 # -----------------------------
 # MAIN LOOP
@@ -114,14 +115,24 @@ while running:
 
     # draw targets
     for i, (x, y) in enumerate(targets):
-        color = (0, 255, 0) if i == index else (120, 120, 120)
+        if not done:
+            color = (0, 255, 0) if i == index else (120, 120, 120)
+        else:
+            color = (80, 80, 80)
+
         pygame.draw.circle(screen, color, (x, y), 18)
 
-    msg = font.render(f"Tap target {index+1}/4", True, (255, 255, 255))
+    # UI TEXT
+    if not done:
+        msg = font.render(f"Tap target {index+1}/4", True, (255, 255, 255))
+    else:
+        msg = font.render("Calibration complete", True, (0, 255, 0))
+
     screen.blit(msg, (20, 20))
 
     pygame.display.flip()
 
+    # pygame events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -133,14 +144,19 @@ while running:
     touch = read_touch()
     now = pygame.time.get_ticks()
 
-    if touch and index < len(targets):
-        if now - last_tap > DEBOUNCE_MS:
+    if touch and not done:
+        if now - last_tap > DEBOUNCE_MS and index < len(targets):
+
             rx, ry = touch
             print("Captured:", rx, ry)
 
             raw_points.append((rx, ry))
             index += 1
             last_tap = now
+
+            if index >= len(targets):
+                done = True
+                print("All points captured")
 
     clock.tick(60)
 
