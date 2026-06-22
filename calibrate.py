@@ -55,16 +55,25 @@ def read_touch():
         if event is None:
             break
 
+        # ignore multitouch noise completely
         if event.type == ecodes.EV_ABS:
-            if event.code == ecodes.ABS_X:
+
+            if event.code == ecodes.ABS_X or event.code == ecodes.ABS_MT_POSITION_X:
                 x = event.value
-            elif event.code == ecodes.ABS_Y:
+
+            elif event.code == ecodes.ABS_Y or event.code == ecodes.ABS_MT_POSITION_Y:
                 y = event.value
 
-        # IMPORTANT: only return when kernel says frame is complete
-        if event.type == ecodes.SYN_REPORT:
+        # ONLY accept full frame here
+        elif event.type == ecodes.SYN_REPORT:
             if x is not None and y is not None:
-                return x, y
+                tx, ty = x, y
+
+                # IMPORTANT: reset immediately
+                x = None
+                y = None
+
+                return tx, ty
 
             x = None
             y = None
