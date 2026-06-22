@@ -46,41 +46,36 @@ index = 0
 # TOUCH SAMPLING (FIXED + STABLE)
 # -----------------------------
 
-def read_stable_touch(samples=8):
-    """
-    Take multiple samples per tap and return median.
-    This eliminates jitter and mixed-frame distortion.
-    """
-    xs = []
-    ys = []
+def read_stable_touch(samples=6):
+    points = []
 
     x = None
     y = None
 
-    while len(xs) < samples:
+    while len(points) < samples:
         event = dev.read_one()
         if event is None:
             continue
 
         if event.type == ecodes.EV_ABS:
-            if event.code == ecodes.ABS_X or event.code == ecodes.ABS_MT_POSITION_X:
+            if event.code in (ecodes.ABS_X, ecodes.ABS_MT_POSITION_X):
                 x = event.value
 
-            elif event.code == ecodes.ABS_Y or event.code == ecodes.ABS_MT_POSITION_Y:
+            elif event.code in (ecodes.ABS_Y, ecodes.ABS_MT_POSITION_Y):
                 y = event.value
 
         elif event.type == ecodes.SYN_REPORT:
             if x is not None and y is not None:
-                xs.append(x)
-                ys.append(y)
+                points.append((x, y))
 
             x = None
             y = None
 
-    if len(xs) == 0:
+    if len(points) == 0:
         return None
 
-    return (int(np.median(xs)), int(np.median(ys)))
+    arr = np.array(points)
+    return (int(np.median(arr[:, 0])), int(np.median(arr[:, 1])))
 
 
 # -----------------------------
