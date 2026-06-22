@@ -2,6 +2,14 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
+# Must be run as root
+# ---------------------------------------------------------------------------
+if [ "$EUID" -ne 0 ]; then
+    echo "Error: please run as root (sudo ./install.sh)" >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # System config
 # ---------------------------------------------------------------------------
 username=$(logname | tr -d '\n')
@@ -13,14 +21,14 @@ echo "==> Hardware arch  : $hardware_arch"
 # ---------------------------------------------------------------------------
 # Touch overlay
 # ---------------------------------------------------------------------------
-sudo cp ./ads7846-overlay.dtb /boot/overlays/ads7846.dtbo
+cp ./ads7846-overlay.dtb /boot/overlays/ads7846.dtbo
 
 # ---------------------------------------------------------------------------
 # Build /boot/firmware/config.txt
 # Written fresh each run so re-running is safe.
 # hdmi_mode=87 is the custom CVT mode for the 800x480 panel.
 # ---------------------------------------------------------------------------
-sudo tee /boot/firmware/config.txt > /dev/null <<'CONF'
+tee /boot/firmware/config.txt > /dev/null <<'CONF'
 dtoverlay=vc4-kms-v3d
 hdmi_force_hotplug=1
 dtparam=i2c_arm=on
@@ -43,7 +51,7 @@ CONF
 CMDLINE=/boot/firmware/cmdline.txt
 if ! grep -q "video=HDMI-A-1:800x480@60" "$CMDLINE"; then
     echo "==> Adding video=HDMI-A-1:800x480@60 to $CMDLINE"
-    sudo sed -i 's/$/ video=HDMI-A-1:800x480@60/' "$CMDLINE"
+    sed -i 's/$/ video=HDMI-A-1:800x480@60/' "$CMDLINE"
 else
     echo "==> video=HDMI-A-1:800x480@60 already present in $CMDLINE, skipping"
 fi
@@ -51,14 +59,14 @@ fi
 # ---------------------------------------------------------------------------
 # Record installation marker
 # ---------------------------------------------------------------------------
-sudo touch ./.have_installed
+touch ./.have_installed
 echo "hdmi:resistance:5:0:800:480" > ./.have_installed
 
 # ---------------------------------------------------------------------------
 # Sync and reboot
 # ---------------------------------------------------------------------------
-sudo sync
-sudo sync
+sync
+sync
 sleep 1
-echo "==> Rebooting now..."
-sudo reboot
+read -rp "Press RETURN to reboot."
+reboot
