@@ -102,27 +102,23 @@ def to_xinput_matrix(m):
 
 last_tap = 0
 DEBOUNCE_MS = 400
+
 done = False
+running = True
 
 # -----------------------------
 # MAIN LOOP
 # -----------------------------
-
-running = True
 
 while running:
     screen.fill((25, 25, 25))
 
     # draw targets
     for i, (x, y) in enumerate(targets):
-        if not done:
-            color = (0, 255, 0) if i == index else (120, 120, 120)
-        else:
-            color = (80, 80, 80)
-
+        color = (0, 255, 0) if i == index else (120, 120, 120)
         pygame.draw.circle(screen, color, (x, y), 18)
 
-    # UI TEXT
+    # UI text
     if not done:
         msg = font.render(f"Tap target {index+1}/4", True, (255, 255, 255))
     else:
@@ -138,7 +134,7 @@ while running:
             running = False
 
     # -----------------------------
-    # TOUCH READ
+    # TOUCH INPUT
     # -----------------------------
 
     touch = read_touch()
@@ -154,31 +150,33 @@ while running:
             index += 1
             last_tap = now
 
+            # -----------------------------
+            # FINISH CONDITION (CLEAN EXIT)
+            # -----------------------------
             if index >= len(targets):
-                done = True
                 print("All points captured")
+                done = True
+
+                # compute calibration BEFORE exit
+                m = solve_affine(raw_points, targets)
+                xinput = to_xinput_matrix(m)
+
+                print("\n=== CALIBRATION COMPLETE ===")
+                print("Affine:", m)
+
+                print("\nXInput matrix:")
+                print(" ".join(map(str, xinput)))
+
+                print("\nApply with:")
+                print(
+                    "xinput set-prop <device-id> "
+                    "'Coordinate Transformation Matrix' " +
+                    " ".join(map(str, xinput))
+                )
+
+                # exit pygame cleanly
+                running = False
 
     clock.tick(60)
 
 pygame.quit()
-
-# -----------------------------
-# SOLVE RESULT
-# -----------------------------
-
-if len(raw_points) == 4:
-    m = solve_affine(raw_points, targets)
-    xinput = to_xinput_matrix(m)
-
-    print("\n=== CALIBRATION COMPLETE ===")
-    print("Affine:", m)
-
-    print("\nXInput matrix:")
-    print(" ".join(map(str, xinput)))
-
-    print("\nApply with:")
-    print(
-        "xinput set-prop <device-id> "
-        "'Coordinate Transformation Matrix' " +
-        " ".join(map(str, xinput))
-    )
