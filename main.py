@@ -22,10 +22,10 @@ from kivy.config import Config
 Config.set('graphics', 'show_cursor', '0')
 Config.set('input', 'mouse', 'mouse')
 Config.set('input', 'ads7846', f'hidinput,{device},invert_y=0,min_abs_x=150,max_abs_x=3948,min_abs_y=275,max_abs_y=3975')
+Config.set('kivy', 'exit_on_escape', 1)
 
 from kivy.app import App
 from kivy.uix.widget import Widget
-from kivy.core.window import Window
 
 
 class PongGame(Widget):
@@ -34,13 +34,7 @@ class PongGame(Widget):
 
 class PongApp(App):
     def build(self):
-        Window.bind(on_keyboard=self.on_keyboard)
         return PongGame()
-
-    def on_keyboard(self, window, key, *args):
-        if key == 27:  # Escape
-            self.stop()
-            return True
 
 
 if __name__ == '__main__':
