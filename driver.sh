@@ -19,10 +19,6 @@ fi
 # Use the correct base config for 64-bit Debian 13 (>= 12.10 branch).
 sudo cp -rf ./boot/config-nomal-12.10-64.txt ./boot/config.txt.bak
 
-# Set boot behaviour: console autologin (B2), and X11 wayland mode (W1).
-sudo raspi-config nonint do_boot_behaviour B2
-sudo raspi-config nonint do_wayland W1
-
 # ---------------------------------------------------------------------------
 # Touch overlay
 # ---------------------------------------------------------------------------
@@ -70,16 +66,6 @@ fi
 # ---------------------------------------------------------------------------
 sudo touch ./.have_installed
 echo "hdmi:resistance:5:0:800:480" > ./.have_installed
-
-# ---------------------------------------------------------------------------
-# Optional rotation
-# ---------------------------------------------------------------------------
-if [ $# -eq 1 ]; then
-    sudo ./rotate.sh "$1"
-elif [ $# -gt 1 ]; then
-    echo "Too many parameters" >&2
-    exit 1
-fi
 
 # ---------------------------------------------------------------------------
 # Sync and reboot
