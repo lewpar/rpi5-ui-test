@@ -43,45 +43,48 @@ raw_points = []
 index = 0
 
 # -----------------------------
-# TOUCH INPUT
+# TOUCH SAMPLING (FIXED + STABLE)
 # -----------------------------
 
-def read_touch():
+def read_stable_touch(samples=8):
+    """
+    Take multiple samples per tap and return median.
+    This eliminates jitter and mixed-frame distortion.
+    """
+    xs = []
+    ys = []
+
     x = None
     y = None
 
-    while True:
+    while len(xs) < samples:
         event = dev.read_one()
         if event is None:
-            break
+            continue
 
-        # ignore multitouch noise completely
         if event.type == ecodes.EV_ABS:
-
             if event.code == ecodes.ABS_X or event.code == ecodes.ABS_MT_POSITION_X:
                 x = event.value
 
             elif event.code == ecodes.ABS_Y or event.code == ecodes.ABS_MT_POSITION_Y:
                 y = event.value
 
-        # ONLY accept full frame here
         elif event.type == ecodes.SYN_REPORT:
             if x is not None and y is not None:
-                tx, ty = x, y
-
-                # IMPORTANT: reset immediately
-                x = None
-                y = None
-
-                return tx, ty
+                xs.append(x)
+                ys.append(y)
 
             x = None
             y = None
 
-    return None
+    if len(xs) == 0:
+        return None
+
+    return (int(np.median(xs)), int(np.median(ys)))
+
 
 # -----------------------------
-# SOLVER
+# AFFINE SOLVER (SAFE)
 # -----------------------------
 
 def solve_affine(raw, screen_pts):
@@ -94,11 +97,17 @@ def solve_affine(raw, screen_pts):
         B.append(sx)
         B.append(sy)
 
-    A = np.array(A)
-    B = np.array(B)
+    A = np.array(A, dtype=float)
+    B = np.array(B, dtype=float)
 
     X, *_ = np.linalg.lstsq(A, B, rcond=None)
-    return X  # a b c d e f
+
+    # sanity check (prevents shear explosions)
+    if np.any(np.abs(X) > 10):
+        print("⚠️ WARNING: unstable calibration detected")
+        print(X)
+
+    return X
 
 
 def to_xinput_matrix(m):
@@ -114,11 +123,8 @@ def to_xinput_matrix(m):
 # STATE
 # -----------------------------
 
-last_tap = 0
-DEBOUNCE_MS = 400
-
-done = False
 running = True
+done = False
 
 # -----------------------------
 # MAIN LOOP
@@ -132,65 +138,57 @@ while running:
         color = (0, 255, 0) if i == index else (120, 120, 120)
         pygame.draw.circle(screen, color, (x, y), 18)
 
-    # UI text
     if not done:
         msg = font.render(f"Tap target {index+1}/4", True, (255, 255, 255))
     else:
         msg = font.render("Calibration complete", True, (0, 255, 0))
 
     screen.blit(msg, (20, 20))
-
     pygame.display.flip()
 
-    # pygame events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
     # -----------------------------
-    # TOUCH INPUT
+    # TOUCH CAPTURE
     # -----------------------------
 
-    touch = read_touch()
-    now = pygame.time.get_ticks()
+    if not done and index < len(targets):
+        touch = read_stable_touch(samples=6)
 
-    if touch and not done:
-        if now - last_tap > DEBOUNCE_MS and index < len(targets):
-
+        if touch:
             rx, ry = touch
-            print("Captured:", rx, ry)
+            print("Captured stable:", rx, ry)
 
             raw_points.append((rx, ry))
             index += 1
-            last_tap = now
 
-            # -----------------------------
-            # FINISH CONDITION (CLEAN EXIT)
-            # -----------------------------
             if index >= len(targets):
-                print("All points captured")
                 done = True
-
-                # compute calibration BEFORE exit
-                m = solve_affine(raw_points, targets)
-                xinput = to_xinput_matrix(m)
-
-                print("\n=== CALIBRATION COMPLETE ===")
-                print("Affine:", m)
-
-                print("\nXInput matrix:")
-                print(" ".join(map(str, xinput)))
-
-                print("\nApply with:")
-                print(
-                    "xinput set-prop <device-id> "
-                    "'Coordinate Transformation Matrix' " +
-                    " ".join(map(str, xinput))
-                )
-
-                # exit pygame cleanly
                 running = False
 
     clock.tick(60)
 
 pygame.quit()
+
+# -----------------------------
+# SOLVE RESULT
+# -----------------------------
+
+if len(raw_points) == 4:
+    m = solve_affine(raw_points, targets)
+    xinput = to_xinput_matrix(m)
+
+    print("\n=== CALIBRATION COMPLETE ===")
+    print("Affine:", m)
+
+    print("\nXInput matrix:")
+    print(" ".join(map(str, xinput)))
+
+    print("\nApply with:")
+    print(
+        "xinput set-prop <device-id> "
+        "'Coordinate Transformation Matrix' " +
+        " ".join(map(str, xinput))
+    )
