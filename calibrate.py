@@ -1,29 +1,21 @@
 import pygame
 import numpy as np
-from evdev import InputDevice, ecodes, list_devices
+from evdev import InputDevice, list_devices, ecodes
 
 # -----------------------------
-# FIND TOUCH DEVICE
+# DEVICE SELECTION MENU (TERMINAL)
 # -----------------------------
 
-def find_touch():
-    for path in list_devices():
-        dev = InputDevice(path)
-        caps = dev.capabilities()
+devices = [InputDevice(p) for p in list_devices()]
 
-        if ecodes.EV_ABS in caps:
-            abs_caps = caps[ecodes.EV_ABS]
+print("\nAvailable input devices:\n")
+for i, d in enumerate(devices):
+    print(f"[{i}] {d.path} | {d.name}")
 
-            if ecodes.ABS_X in abs_caps and ecodes.ABS_Y in abs_caps:
-                print("Using:", dev.path, dev.name)
-                return dev
+idx = int(input("\nSelect touch device index: "))
+dev = devices[idx]
 
-    return None
-
-
-dev = find_touch()
-if not dev:
-    raise RuntimeError("No touchscreen device found")
+print("\nUsing:", dev.path, dev.name)
 
 # -----------------------------
 # PYGAME INIT
@@ -41,26 +33,25 @@ font = pygame.font.SysFont(None, 40)
 # -----------------------------
 
 targets = [
-    (80, 80),      # top-left
-    (720, 80),     # top-right
-    (80, 400),     # bottom-left
-    (720, 400)     # bottom-right
+    (80, 80),
+    (720, 80),
+    (80, 400),
+    (720, 400)
 ]
 
 raw_points = []
 index = 0
 
 # -----------------------------
-# READ TOUCH (FIXED: read_one ONLY)
+# TOUCH INPUT (ROBUST read_one)
 # -----------------------------
 
 def read_touch():
     x = None
     y = None
 
-    # drain available events
     while True:
-        event = dev.read_one()   # ✅ safest API
+        event = dev.read_one()
         if event is None:
             break
 
@@ -93,7 +84,6 @@ def solve_affine(raw, screen_pts):
     B = np.array(B)
 
     X, *_ = np.linalg.lstsq(A, B, rcond=None)
-
     return X  # a b c d e f
 
 
@@ -111,7 +101,7 @@ def to_xinput_matrix(m):
 # -----------------------------
 
 last_tap = 0
-DEBOUNCE = 400  # ms
+DEBOUNCE_MS = 400
 
 # -----------------------------
 # MAIN LOOP
@@ -120,32 +110,31 @@ DEBOUNCE = 400  # ms
 running = True
 
 while running:
-    screen.fill((20, 20, 20))
+    screen.fill((25, 25, 25))
 
     # draw targets
     for i, (x, y) in enumerate(targets):
         color = (0, 255, 0) if i == index else (120, 120, 120)
         pygame.draw.circle(screen, color, (x, y), 18)
 
-    txt = font.render(f"Tap target {index+1}/4", True, (255, 255, 255))
-    screen.blit(txt, (20, 20))
+    msg = font.render(f"Tap target {index+1}/4", True, (255, 255, 255))
+    screen.blit(msg, (20, 20))
 
     pygame.display.flip()
 
-    # pygame events (exit support)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
     # -----------------------------
-    # TOUCH INPUT
+    # TOUCH READ
     # -----------------------------
 
     touch = read_touch()
     now = pygame.time.get_ticks()
 
     if touch and index < len(targets):
-        if now - last_tap > DEBOUNCE:
+        if now - last_tap > DEBOUNCE_MS:
             rx, ry = touch
             print("Captured:", rx, ry)
 
@@ -158,7 +147,7 @@ while running:
 pygame.quit()
 
 # -----------------------------
-# SOLVE + OUTPUT
+# SOLVE RESULT
 # -----------------------------
 
 if len(raw_points) == 4:
