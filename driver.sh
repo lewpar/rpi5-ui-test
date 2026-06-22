@@ -10,29 +10,18 @@ hardware_arch=64
 echo "==> Username       : $username"
 echo "==> Hardware arch  : $hardware_arch"
 
-# RPi 5 uses /boot/firmware/config.txt — symlink to /boot/config.txt for
-# compatibility with the rest of this script.
-if [ -f /boot/firmware/config.txt ]; then
-    sudo ln -sf /boot/firmware/config.txt /boot/config.txt
-fi
-
-# Use the correct base config for 64-bit Debian 13 (>= 12.10 branch).
-sudo cp -rf ./boot/config-nomal-12.10-64.txt ./boot/config.txt.bak
-
 # ---------------------------------------------------------------------------
 # Touch overlay
 # ---------------------------------------------------------------------------
 sudo cp ./usr/ads7846-overlay.dtb /boot/overlays/ads7846.dtbo
 
 # ---------------------------------------------------------------------------
-# Build /boot/config.txt
-# RPi 5 always uses vc4-kms-v3d on Debian 13.
-# ---------------------------------------------------------------------------
-sudo sed -i 's/#dtoverlay=vc4-kms-v3d/dtoverlay=vc4-kms-v3d/' ./boot/config.txt.bak
-
-# Append display/hardware settings
+# Build /boot/firmware/config.txt
+# Written fresh each run so re-running is safe.
 # hdmi_mode=87 is the custom CVT mode for the 800x480 panel.
-sudo tee -a ./boot/config.txt.bak > /dev/null <<'CONF'
+# ---------------------------------------------------------------------------
+sudo tee /boot/firmware/config.txt > /dev/null <<'CONF'
+dtoverlay=vc4-kms-v3d
 hdmi_force_hotplug=1
 dtparam=i2c_arm=on
 dtparam=spi=on
@@ -46,8 +35,6 @@ hdmi_drive=1
 hdmi_cvt 800 480 60 6 0 0 0
 dtoverlay=ads7846,cs=1,penirq=25,penirq_pull=2,speed=50000,keep_vref_on=0,swapxy=0,pmax=255,xohms=150,xmin=200,xmax=3900,ymin=200,ymax=3900
 CONF
-
-sudo cp -f ./boot/config.txt.bak /boot/config.txt
 
 # ---------------------------------------------------------------------------
 # cmdline.txt — append video mode if not already present
