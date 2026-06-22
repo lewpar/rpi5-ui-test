@@ -1,2 +1,2 @@
 #!/bin/bash
-weston --shell=kiosk-shell.so -- ./venv/bin/python main.py
+weston --backend=drm-backend.so --socket=wayland-0 --start-fulscreen -- ./venv/bin/python main.py
