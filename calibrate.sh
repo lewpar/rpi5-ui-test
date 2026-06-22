@@ -41,9 +41,6 @@ read_touch() {
     local last_x last_y
     last_x=""
     last_y=""
-    local start_time end_time
-    start_time=$(date +%s)
-    end_time=$(( start_time + hold_secs ))
 
     while IFS= read -r line; do
         if echo "$line" | grep -q "ABS_X"; then
@@ -59,10 +56,7 @@ read_touch() {
             last_x=""
             last_y=""
         fi
-        if [ "$(date +%s)" -ge "$end_time" ]; then
-            break
-        fi
-    done < <(evtest "$device" 2>/dev/null)
+    done < <(timeout "$hold_secs" evtest "$device" 2>/dev/null || true)
 
     if [ "$count" -eq 0 ]; then
         echo "Error: no touch detected." >&2
