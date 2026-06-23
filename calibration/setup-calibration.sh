@@ -10,4 +10,4 @@ mkdir -p ~/.config
 cp ./weston.ini ~/.config/weston.ini
 
 # Write Weston calibration save script
-cp ./weston-save-calibration.sh /usr/bin/weston-save-calibration.sh
+sudo cp ./weston-save-calibration.sh /usr/bin/weston-save-calibration.sh
